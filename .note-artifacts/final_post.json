@@ -1,0 +1,5 @@
+{
+  "title": "自動投稿テスト",
+  "body": "これは GitHub Actions から自動で投稿されたテスト記事です。",
+  "tags": ["GitHub", "note", "自動化"]
+}

@@ -1,5 +1,4 @@
 name: Note Workflow
-
 on:
   workflow_dispatch:
     inputs:
@@ -19,33 +18,31 @@ on:
         description: "カンマ区切りタグ（任意）"
         required: false
       is_public:
-        description: "公開 or 下書き保存（true/false）"
+        description: "公開 / 下書き保存（true / false）"
         required: true
       dry_run:
-        description: "投稿スキップ（true/false）"
+        description: "投稿スキップ（true / false）"
         required: true
 
 jobs:
-  research:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Research step
-        run: echo "Research with Claude"
-
-  write:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Write step
-        run: echo "Write with Claude"
-
-  fact-check:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Fact-check step
-        run: echo "Fact-check with Tavily"
-
   post:
     runs-on: ubuntu-latest
     steps:
-      - name: Post step
-        run: echo "Post with Playwright"
+      - uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Create note-state.json
+        run: echo '${{ secrets.NOTE_STORAGE_STATE_JSON }}' > note-state.json
+
+      - name: Run post script
+        env:
+          IS_PUBLIC: ${{ inputs.is_public }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: node post.mjs
