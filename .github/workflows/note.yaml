@@ -1,28 +1,52 @@
-name: Note Workflow
+name: Note Auto Post
+
 on:
   workflow_dispatch:
     inputs:
-      theme: {required: true, description: "記事テーマ（必須）"}
-      target: {required: true, description: "想定読者（必須）"}
-      message: {required: true, description: "伝えたい核メッセージ（必須）"}
-      cta: {required: true, description: "読後のアクション（必須）"}
-      tags: {required: false, description: "カンマ区切りタグ（任意）"}
-      is_public: {required: true, description: "公開/下書き保存 true/false"}
-      dry_run: {required: true, description: "投稿スキップ true/false"}
+      theme:
+        description: "投稿テーマ"
+        required: true
+      target:
+        description: "対象ユーザー"
+        required: true
+      message:
+        description: "投稿本文メッセージ"
+        required: true
+      cta:
+        description: "CTA（行動喚起文）"
+        required: true
+      tags:
+        description: "タグ（カンマ区切り）"
+        required: false
+      is_public:
+        description: "公開設定（true = 公開, false = 非公開）"
+        required: true
+      dry_run:
+        description: "ドライランモード（true = 投稿しない）"
+        required: true
 
 jobs:
   post:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v3
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
+      - name: 📦 リポジトリをチェックアウト
+        uses: actions/checkout@v4
+
+      - name: 🧰 Node.js をセットアップ
+        uses: actions/setup-node@v4
         with:
-          node-version: '20'
-      - name: Install dependencies
+          node-version: 20
+
+      - name: 📦 依存パッケージをインストール
         run: npm ci
-      - name: Post to Note
-        run: node post.mjs
+
+      - name: 🧭 Playwright ブラウザをインストール
+        run: |
+          npx playwright install --with-deps
+          echo "✅ Playwright browsers installed successfully"
+
+      - name: 🚀 Note に自動投稿
         env:
           NOTE_STORAGE_STATE_JSON: ${{ secrets.NOTE_STORAGE_STATE_JSON }}
           THEME: ${{ github.event.inputs.theme }}
@@ -32,3 +56,6 @@ jobs:
           TAGS: ${{ github.event.inputs.tags }}
           IS_PUBLIC: ${{ github.event.inputs.is_public }}
           DRY_RUN: ${{ github.event.inputs.dry_run }}
+        run: |
+          echo "Starting Note auto-post workflow..."
+          node post.mjs
