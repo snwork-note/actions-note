@@ -1,14 +1,29 @@
 name: Note Workflow
+
 on:
   workflow_dispatch:
     inputs:
-      theme: {required: true}
-      target: {required: true}
-      message: {required: true}
-      cta: {required: true}
-      tags: {required: false}
-      is_public: {required: true}
-      dry_run: {required: true}
+      theme:
+        description: "記事テーマ（必須）"
+        required: true
+      target:
+        description: "想定読者（必須）"
+        required: true
+      message:
+        description: "伝えたい核メッセージ（必須）"
+        required: true
+      cta:
+        description: "読後のアクション（必須）"
+        required: true
+      tags:
+        description: "カンマ区切りタグ（任意）"
+        required: false
+      is_public:
+        description: "公開 or 下書き保存（true/false）"
+        required: true
+      dry_run:
+        description: "投稿スキップ（true/false）"
+        required: true
 
 jobs:
   research:
