@@ -2,65 +2,70 @@ import { chromium } from 'playwright';
 import fs from 'fs';
 import path from 'path';
 
-// 記事内容のサンプル
-// GitHub Actions では workflow_dispatch の inputs で渡す形にできます
-const ARTICLE = {
-  title: process.env.NOTE_TITLE || '自動生成記事タイトル',
-  body: process.env.NOTE_BODY || 'これは自動生成された記事本文です。',
-  tags: process.env.NOTE_TAGS || '自動,テスト'
-};
+const STATE_PATH = './note-state.json';
+const HEADLESS = process.env.HEADLESS !== 'false'; // デフォルト true
 
-// note-state.json の取得
-let noteStateJson = process.env.NOTE_STORAGE_STATE_JSON;
-if (!noteStateJson) {
-  const filePath = path.resolve('./note-state.json');
-  if (fs.existsSync(filePath)) {
-    noteStateJson = fs.readFileSync(filePath, 'utf-8');
-    console.log('✅ ローカルの note-state.json を使用');
-  } else {
-    console.error('❌ note-state.json が存在しません。Secrets (NOTE_STORAGE_STATE_JSON) またはファイルを確認してください。');
-    process.exit(1);
-  }
+// Secrets から note のログイン状態を取得
+const NOTE_STATE_JSON = process.env.NOTE_STORAGE_STATE_JSON;
+if (!NOTE_STATE_JSON) {
+  console.error('❌ note-state.json が存在しません。Secrets (NOTE_STORAGE_STATE_JSON) を確認してください。');
+  process.exit(1);
+}
+
+// 一時ファイルに展開
+fs.writeFileSync(STATE_PATH, NOTE_STATE_JSON, 'utf-8');
+
+// 入力を環境変数から取得
+const theme = process.env.THEME || '';
+const target = process.env.TARGET || '';
+const message = process.env.MESSAGE || '';
+const cta = process.env.CTA || '';
+const tags = process.env.TAGS || '';
+const isPublic = process.env.IS_PUBLIC === 'true';
+const dryRun = process.env.DRY_RUN === 'true';
+
+if (!theme || !target || !message || !cta) {
+  console.error('❌ 必須入力が不足しています。THEME, TARGET, MESSAGE, CTA を確認してください。');
+  process.exit(1);
 }
 
 (async () => {
-  const statePath = './note-state-temp.json';
-  fs.writeFileSync(statePath, noteStateJson, 'utf-8');
-
-  const browser = await chromium.launch({ headless: false });
-  const context = await browser.newContext({ storageState: statePath });
+  const browser = await chromium.launch({ headless: HEADLESS });
+  const context = await browser.newContext({ storageState: STATE_PATH });
   const page = await context.newPage();
 
-  // note.com の新規下書きページ
-  await page.goto('https://note.com/new');
+  console.log('note.com にアクセス...');
+  await page.goto('https://note.com');
 
-  console.log('📝 記事入力中...');
-
-  // タイトル入力
-  const titleSelector = 'textarea[placeholder="タイトル"]';
-  await page.waitForSelector(titleSelector);
-  await page.fill(titleSelector, ARTICLE.title);
-
-  // 本文入力
-  const bodySelector = 'div[contenteditable="true"]';
-  await page.waitForSelector(bodySelector);
-  await page.fill(bodySelector, ARTICLE.body);
-
-  // タグ入力
-  const tagSelector = 'input[placeholder="タグ"]';
-  await page.waitForSelector(tagSelector);
-  const tagsArray = ARTICLE.tags.split(',').map(t => t.trim());
-  for (const tag of tagsArray) {
-    await page.fill(tagSelector, tag);
-    await page.keyboard.press('Enter');
+  if (dryRun) {
+    console.log('💡 dry_run=true のため投稿はスキップします。');
+    await browser.close();
+    return;
   }
 
-  console.log('✅ 記事入力完了');
-  console.log('💡 投稿は手動で確認して保存または公開してください');
+  console.log('下書き画面を開く...');
+  await page.goto('https://note.com/new/note');
 
-  // 完了後ブラウザ閉じる
+  // タイトル入力
+  await page.fill('input[name="title"]', theme);
+
+  // 本文入力
+  const content = `${message}\n\n想定読者: ${target}\n\n読後アクション: ${cta}`;
+  await page.fill('textarea[name="content"]', content);
+
+  // タグ入力（任意）
+  if (tags) {
+    await page.fill('input[name="tags"]', tags);
+  }
+
+  // 公開 or 下書き
+  if (isPublic) {
+    await page.click('button:text("公開")');
+    console.log('✅ 公開しました');
+  } else {
+    await page.click('button:text("下書き保存")');
+    console.log('💾 下書き保存しました');
+  }
+
   await browser.close();
-
-  // 一時ファイル削除
-  fs.unlinkSync(statePath);
 })();
