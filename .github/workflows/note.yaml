@@ -18,31 +18,49 @@ on:
         description: "カンマ区切りタグ（任意）"
         required: false
       is_public:
-        description: "公開 / 下書き保存（true / false）"
+        description: "公開 / 下書き保存 true/false"
         required: true
       dry_run:
-        description: "投稿スキップ（true / false）"
+        description: "投稿スキップ true/false"
         required: true
 
 jobs:
+  research:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Research step
+        run: echo "Research with Claude"
+
+  write:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Write step
+        run: echo "Write with Claude"
+
+  fact-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fact-check step
+        run: echo "Fact-check with Tavily"
+
   post:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: 20
 
       - name: Install dependencies
         run: npm install
 
-      - name: Create note-state.json
-        run: echo '${{ secrets.NOTE_STORAGE_STATE_JSON }}' > note-state.json
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
 
       - name: Run post script
         env:
-          IS_PUBLIC: ${{ inputs.is_public }}
-          DRY_RUN: ${{ inputs.dry_run }}
+          NOTE_STORAGE_STATE_JSON: ${{ secrets.NOTE_STORAGE_STATE_JSON }}
         run: node post.mjs
