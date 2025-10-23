@@ -2,50 +2,27 @@ name: Note Workflow
 on:
   workflow_dispatch:
     inputs:
-      theme:
-        description: 記事テーマ（必須）
-        required: true
-      target:
-        description: 想定読者（必須）
-        required: true
-      message:
-        description: 伝えたい核メッセージ（必須）
-        required: true
-      cta:
-        description: 読後のアクション（必須）
-        required: true
-      tags:
-        description: カンマ区切りタグ（任意）
-        required: false
-      is_public:
-        description: 公開/下書き保存 true/false
-        required: true
-      dry_run:
-        description: 投稿スキップ true/false
-        required: true
+      theme: {required: true, description: "記事テーマ（必須）"}
+      target: {required: true, description: "想定読者（必須）"}
+      message: {required: true, description: "伝えたい核メッセージ（必須）"}
+      cta: {required: true, description: "読後のアクション（必須）"}
+      tags: {required: false, description: "カンマ区切りタグ（任意）"}
+      is_public: {required: true, description: "公開/下書き保存 true/false"}
+      dry_run: {required: true, description: "投稿スキップ true/false"}
 
 jobs:
   post:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
+      - uses: actions/checkout@v3
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: 20
-
+          node-version: '20'
       - name: Install dependencies
-        run: npm install
-
-      - name: Install Playwright browsers
-        run: npx playwright install
-
-      - name: Prepare note-state.json
-        run: echo "${{ secrets.NOTE_STORAGE_STATE_JSON }}" > note-state.json
-
-      - name: Run Post script
+        run: npm ci
+      - name: Post to Note
+        run: node post.mjs
         env:
           NOTE_STORAGE_STATE_JSON: ${{ secrets.NOTE_STORAGE_STATE_JSON }}
           THEME: ${{ github.event.inputs.theme }}
@@ -55,4 +32,3 @@ jobs:
           TAGS: ${{ github.event.inputs.tags }}
           IS_PUBLIC: ${{ github.event.inputs.is_public }}
           DRY_RUN: ${{ github.event.inputs.dry_run }}
-        run: node post.mjs

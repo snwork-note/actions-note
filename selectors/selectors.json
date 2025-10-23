@@ -1,0 +1,6 @@
+{
+  "postBtn": "a[href=\"/new\"]",
+  "title": "input[name=\"title\"]",
+  "body": "textarea[name=\"body\"]",
+  "saveBtn": "button[data-testid=\"draft-save\"]"
+}
