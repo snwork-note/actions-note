@@ -1,0 +1,6 @@
+{
+  "postBtn": "button[data-testid=\"post-create\"]",
+  "title": "input[name=\"title\"]",
+  "body": "textarea[name=\"body\"]",
+  "saveBtn": "button[data-testid=\"draft-save\"]"
+}
