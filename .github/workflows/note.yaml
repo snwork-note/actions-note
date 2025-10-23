@@ -1,0 +1,36 @@
+name: Note Workflow
+on:
+  workflow_dispatch:
+    inputs:
+      theme: {required: true}
+      target: {required: true}
+      message: {required: true}
+      cta: {required: true}
+      tags: {required: false}
+      is_public: {required: true}
+      dry_run: {required: true}
+
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Research step
+        run: echo "Research with Claude"
+
+  write:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Write step
+        run: echo "Write with Claude"
+
+  fact-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fact-check step
+        run: echo "Fact-check with Tavily"
+
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post step
+        run: echo "Post with Playwright"
