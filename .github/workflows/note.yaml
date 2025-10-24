@@ -1,64 +1,52 @@
-name: Note Workflow
+name: Post to Note.com
 
 on:
   workflow_dispatch:
-    inputs:
-      theme:
-        description: "記事テーマ（必須）"
-        required: true
-      target:
-        description: "想定読者（必須）"
-        required: true
-      message:
-        description: "伝えたい核メッセージ（必須）"
-        required: true
-      cta:
-        description: "読後のアクション（必須）"
-        required: true
-      tags:
-        description: "カンマ区切りタグ（任意）"
-        required: false
-      is_public:
-        description: "公開/下書き保存（true/false）"
-        required: true
-      dry_run:
-        description: "投稿スキップ（true/false）"
-        required: true
 
 jobs:
   post:
     runs-on: ubuntu-latest
 
+    env:
+      NOTE_STORAGE_STATE_JSON: ${{ secrets.NOTE_STORAGE_STATE_JSON }}
+      THEME: GitHub Actions と note 自動化
+      TARGET: 副業を探してる人
+      MESSAGE: 面倒なところを自動化
+      CTA: 実際に workflow を作ってみよう
+      TAGS: 副業,AI,アフィリエイト
+      IS_PUBLIC: false
+      DRY_RUN: false
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Restore note-state.json from secret
-        run: |
-          echo "${{ secrets.NOTE_STORAGE_STATE_JSON }}" > note-state.json
-          echo "✅ note-state.json を復元しました"
-
-      - name: Install Node.js
+      - name: 🧩 Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - name: Install dependencies
-        run: |
-          npm ci
-          npx playwright install chromium
-          echo "✅ 依存関係とブラウザをインストールしました"
+      - name: 📦 Install dependencies
+        run: npm install playwright
 
-      - name: Post to note.com
+      - name: 🎭 Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: 🚀 Run post script
+        id: post
         run: |
           echo "🟢 note.com にアクセス開始..."
           node post.mjs
-        env:
-          NOTE_STORAGE_STATE_JSON: ${{ secrets.NOTE_STORAGE_STATE_JSON }}
-          THEME: ${{ github.event.inputs.theme }}
-          TARGET: ${{ github.event.inputs.target }}
-          MESSAGE: ${{ github.event.inputs.message }}
-          CTA: ${{ github.event.inputs.cta }}
-          TAGS: ${{ github.event.inputs.tags }}
-          IS_PUBLIC: ${{ github.event.inputs.is_public }}
-          DRY_RUN: ${{ github.event.inputs.dry_run }}
+        continue-on-error: true  # ← 失敗しても次のステップに進む
+
+      - name: 🧾 Upload screenshots (if exist)
+        if: always()  # ← 成功・失敗を問わず実行
+        uses: actions/upload-artifact@v4
+        with:
+          name: note-debug-screenshots
+          path: |
+            title_error.png
+            body_error.png
+            save_error.png
+            fatal_error.png
+          if-no-files-found: ignore
