@@ -13,12 +13,12 @@ async function prepareStateFile() {
   if (fs.existsSync(statePath)) fs.unlinkSync(statePath);
 
   try {
-    // まずは JSON として試す
+    // JSON形式かチェック
     JSON.parse(encoded);
     fs.writeFileSync(statePath, encoded);
     console.log("✅ JSON 形式の note-state.json を作成しました。");
   } catch {
-    // Base64 の可能性
+    // Base64対応
     console.log("⚠️ note-state.json が JSON 形式でないため、Base64 デコードを試みます...");
     try {
       const decoded = Buffer.from(encoded, "base64").toString("utf-8");
@@ -39,10 +39,7 @@ async function main() {
 
   const statePath = await prepareStateFile();
 
-  // Playwright 起動オプション
-  const browser = await chromium.launch({
-    headless: true,
-  });
+  const browser = await chromium.launch({ headless: true });
 
   const context = await browser.newContext({
     storageState: statePath,
@@ -51,20 +48,34 @@ async function main() {
   const page = await context.newPage();
 
   try {
-    // note トップページへ
     await page.goto("https://note.com", { waitUntil: "networkidle" });
     console.log("✅ note.com にアクセスしました。");
 
-    // 投稿ページへ遷移
+    // 投稿ボタンセレクタ対応（/new, /note/new, /notes/new すべて対応）
     console.log("🟢 投稿ボタンをクリック...");
-    const newPostSelector = 'a[href="/note/new"], a[href="/new"]';
-    await page.waitForSelector(newPostSelector, { timeout: 60000 });
-    await page.click(newPostSelector);
+    const newPostSelectors = [
+      'a[href="/new"]',
+      'a[href="/note/new"]',
+      'a[href="/notes/new"]',
+    ];
 
-    // 下書き画面の読み込み待ち
+    let clicked = false;
+    for (const selector of newPostSelectors) {
+      try {
+        await page.waitForSelector(selector, { timeout: 60000 });
+        await page.click(selector);
+        console.log(`✅ 投稿ボタン検出: ${selector}`);
+        clicked = true;
+        break;
+      } catch {
+        console.log(`⏭ 投稿ボタン未検出: ${selector}`);
+      }
+    }
+
+    if (!clicked) throw new Error("❌ 投稿ボタンが見つかりません。");
+
     await page.waitForLoadState("networkidle");
 
-    // 投稿内容を設定
     const theme = process.env.THEME || "テスト投稿";
     const target = process.env.TARGET || "読者層";
     const message = process.env.MESSAGE || "テストメッセージ";
@@ -73,7 +84,7 @@ async function main() {
 
     console.log("📝 投稿内容を入力中...");
 
-    // タイトル欄候補
+    // タイトル入力欄
     const titleSelectors = [
       'div[role="textbox"][data-placeholder*="タイトル"]',
       'input[placeholder*="タイトル"]',
@@ -97,7 +108,7 @@ async function main() {
       throw new Error("❌ タイトル欄が見つかりません。構造が変わった可能性があります。");
     }
 
-    // 本文欄候補
+    // 本文欄
     const bodySelectors = [
       'div[contenteditable="true"][data-placeholder*="本文"]',
       'div[role="textbox"][data-placeholder*="本文"]',
@@ -121,7 +132,7 @@ async function main() {
       throw new Error("❌ 本文欄が見つかりません。構造が変わった可能性があります。");
     }
 
-    // 下書き保存ボタンを探してクリック
+    // 下書き保存
     const saveSelectors = [
       'button:has-text("下書き保存")',
       'button[data-testid="draft-save"]',
@@ -146,7 +157,6 @@ async function main() {
 
     console.log("💾 下書き保存完了を確認中...");
     await page.waitForTimeout(3000);
-
     console.log("✅ 下書き保存が完了しました。");
   } catch (err) {
     console.error("💥 エラー:", err);
