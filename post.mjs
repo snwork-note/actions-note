@@ -1,106 +1,163 @@
 import { chromium } from "playwright";
 import fs from "fs";
-import path from "path";
-
-async function ensurePlaywrightBrowsers() {
-  try {
-    console.log("🧩 Playwright のブラウザを確認中...");
-    const browsersDir = path.join(process.env.HOME || "", ".cache/ms-playwright");
-    if (!fs.existsSync(browsersDir)) {
-      console.log("📦 Playwright ブラウザが未インストールのため、インストールを実行します...");
-      const { execSync } = await import("child_process");
-      execSync("npx playwright install --with-deps", { stdio: "inherit" });
-    }
-  } catch (err) {
-    console.error("⚠️ ブラウザ確認中にエラー:", err);
-  }
-}
 
 async function prepareStateFile() {
   const statePath = "./note-state.json";
+  const encoded = process.env.NOTE_STORAGE_STATE_JSON;
 
-  if (!fs.existsSync(statePath)) {
-    console.error("❌ note-state.json が存在しません。ログイン情報が必要です。");
-    process.exit(1);
-  }
+  if (!encoded) throw new Error("❌ NOTE_STORAGE_STATE_JSON が設定されていません");
 
-  let raw = fs.readFileSync(statePath, "utf8").trim();
+  console.log("🧩 Playwright のブラウザを確認中...");
 
-  // JSONパースを試す
+  // 既に存在している場合は削除
+  if (fs.existsSync(statePath)) fs.unlinkSync(statePath);
+
   try {
-    JSON.parse(raw);
-    console.log("✅ note-state.json は正常な JSON 形式です。");
+    // まずは JSON として試す
+    JSON.parse(encoded);
+    fs.writeFileSync(statePath, encoded);
+    console.log("✅ JSON 形式の note-state.json を作成しました。");
   } catch {
-    console.warn("⚠️ note-state.json が JSON 形式でないため、Base64 デコードを試みます...");
+    // Base64 の可能性
+    console.log("⚠️ note-state.json が JSON 形式でないため、Base64 デコードを試みます...");
     try {
-      const decoded = Buffer.from(raw, "base64").toString("utf8");
-      JSON.parse(decoded); // デコード結果が正しいか確認
+      const decoded = Buffer.from(encoded, "base64").toString("utf-8");
+      JSON.parse(decoded);
       fs.writeFileSync(statePath, decoded);
       console.log("✅ Base64 デコード成功: note-state.json を修復しました。");
     } catch (err) {
       console.error("💥 note-state.json のデコードに失敗しました。");
-      console.error(err);
-      process.exit(1);
+      throw err;
     }
   }
+
+  return statePath;
 }
 
 async function main() {
   console.log("🟢 note.com にアクセス開始...");
 
-  await ensurePlaywrightBrowsers();
-  await prepareStateFile();
+  const statePath = await prepareStateFile();
 
+  // Playwright 起動オプション
   const browser = await chromium.launch({
     headless: true,
   });
 
   const context = await browser.newContext({
-    storageState: "./note-state.json",
+    storageState: statePath,
   });
 
   const page = await context.newPage();
 
   try {
-    // note にアクセス
-    await page.goto("https://note.com", { waitUntil: "domcontentloaded" });
+    // note トップページへ
+    await page.goto("https://note.com", { waitUntil: "networkidle" });
     console.log("✅ note.com にアクセスしました。");
 
-    // 投稿ボタン
+    // 投稿ページへ遷移
     console.log("🟢 投稿ボタンをクリック...");
-    await page.click('a[href="/new"]', { timeout: 60000 });
+    const newPostSelector = 'a[href="/note/new"], a[href="/new"]';
+    await page.waitForSelector(newPostSelector, { timeout: 60000 });
+    await page.click(newPostSelector);
 
-    // ページ遷移を待つ
-    await page.waitForLoadState("domcontentloaded");
-    console.log("✅ 新規投稿ページに遷移しました。");
+    // 下書き画面の読み込み待ち
+    await page.waitForLoadState("networkidle");
 
-    // 入力フィールド読み込み
-    const selectors = JSON.parse(fs.readFileSync("./selectors.json", "utf8"));
+    // 投稿内容を設定
+    const theme = process.env.THEME || "テスト投稿";
+    const target = process.env.TARGET || "読者層";
+    const message = process.env.MESSAGE || "テストメッセージ";
+    const cta = process.env.CTA || "行動を促す内容";
+    const tags = process.env.TAGS || "テスト,自動投稿";
 
-    console.log("🟢 タイトル入力中...");
-    await page.fill(selectors.title, process.env.THEME || "テストタイトル");
+    console.log("📝 投稿内容を入力中...");
 
-    console.log("🟢 本文入力中...");
-    await page.fill(selectors.body, process.env.MESSAGE || "本文テストです。");
+    // タイトル欄候補
+    const titleSelectors = [
+      'div[role="textbox"][data-placeholder*="タイトル"]',
+      'input[placeholder*="タイトル"]',
+      'textarea[placeholder*="タイトル"]',
+    ];
 
-    console.log("🟢 下書き保存...");
-    await page.click(selectors.saveBtn, { timeout: 60000 });
-
-    console.log("✅ 下書き保存が完了しました。");
-
-    if (process.env.IS_PUBLIC === "true") {
-      console.log("🌐 公開モード: 実際に公開する処理をここに追加できます。");
-    } else {
-      console.log("📝 下書きモードで完了しました。");
+    let titleBox = null;
+    for (const selector of titleSelectors) {
+      try {
+        titleBox = await page.waitForSelector(selector, { timeout: 20000 });
+        if (titleBox) {
+          console.log(`✅ タイトル欄検出: ${selector}`);
+          await titleBox.fill(`${theme} - ${message}`);
+          break;
+        }
+      } catch {}
     }
 
-    await browser.close();
-    console.log("🎉 投稿フローが正常に完了しました。");
+    if (!titleBox) {
+      await page.screenshot({ path: "title_error.png" });
+      throw new Error("❌ タイトル欄が見つかりません。構造が変わった可能性があります。");
+    }
+
+    // 本文欄候補
+    const bodySelectors = [
+      'div[contenteditable="true"][data-placeholder*="本文"]',
+      'div[role="textbox"][data-placeholder*="本文"]',
+      'div[contenteditable="true"]:not([data-placeholder])',
+    ];
+
+    let bodyBox = null;
+    for (const selector of bodySelectors) {
+      try {
+        bodyBox = await page.waitForSelector(selector, { timeout: 20000 });
+        if (bodyBox) {
+          console.log(`✅ 本文欄検出: ${selector}`);
+          await bodyBox.fill(`# ${theme}\n\n${message}\n\n対象: ${target}\n\n${cta}\n\nタグ: ${tags}`);
+          break;
+        }
+      } catch {}
+    }
+
+    if (!bodyBox) {
+      await page.screenshot({ path: "body_error.png" });
+      throw new Error("❌ 本文欄が見つかりません。構造が変わった可能性があります。");
+    }
+
+    // 下書き保存ボタンを探してクリック
+    const saveSelectors = [
+      'button:has-text("下書き保存")',
+      'button[data-testid="draft-save"]',
+    ];
+
+    let saveBtn = null;
+    for (const selector of saveSelectors) {
+      try {
+        saveBtn = await page.waitForSelector(selector, { timeout: 20000 });
+        if (saveBtn) {
+          console.log(`✅ 下書き保存ボタン検出: ${selector}`);
+          await saveBtn.click();
+          break;
+        }
+      } catch {}
+    }
+
+    if (!saveBtn) {
+      await page.screenshot({ path: "save_error.png" });
+      throw new Error("❌ 下書き保存ボタンが見つかりません。");
+    }
+
+    console.log("💾 下書き保存完了を確認中...");
+    await page.waitForTimeout(3000);
+
+    console.log("✅ 下書き保存が完了しました。");
   } catch (err) {
     console.error("💥 エラー:", err);
+    await page.screenshot({ path: "fatal_error.png" });
+    throw err;
+  } finally {
     await browser.close();
-    process.exit(1);
   }
 }
 
-main();
+main().catch((err) => {
+  console.error("Error:", err);
+  process.exit(1);
+});
