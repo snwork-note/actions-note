@@ -1,52 +1,51 @@
-name: Post to Note.com
+name: Note Workflow
 
 on:
   workflow_dispatch:
+    inputs:
+      theme:
+        description: '記事テーマ（必須）'
+        required: true
+      target:
+        description: '想定読者（必須）'
+        required: true
+      message:
+        description: '伝えたい核メッセージ（必須）'
+        required: true
+      cta:
+        description: '読後のアクション（必須）'
+        required: true
+      tags:
+        description: 'カンマ区切りタグ（任意）'
+        required: false
+      is_public:
+        description: '公開/下書き保存 true/false'
+        required: true
+      dry_run:
+        description: '投稿スキップ true/false'
+        required: true
 
 jobs:
+  research:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Research step
+        run: echo "Research with Claude"
+
+  write:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Write step
+        run: echo "Write with Claude"
+
+  fact-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fact-check step
+        run: echo "Fact-check with Tavily"
+
   post:
     runs-on: ubuntu-latest
-
-    env:
-      NOTE_STORAGE_STATE_JSON: ${{ secrets.NOTE_STORAGE_STATE_JSON }}
-      THEME: GitHub Actions と note 自動化
-      TARGET: 副業を探してる人
-      MESSAGE: 面倒なところを自動化
-      CTA: 実際に workflow を作ってみよう
-      TAGS: 副業,AI,アフィリエイト
-      IS_PUBLIC: false
-      DRY_RUN: false
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: 🧩 Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: 📦 Install dependencies
-        run: npm install playwright
-
-      - name: 🎭 Install Playwright browsers
-        run: npx playwright install --with-deps chromium
-
-      - name: 🚀 Run post script
-        id: post
-        run: |
-          echo "🟢 note.com にアクセス開始..."
-          node post.mjs
-        continue-on-error: true  # ← 失敗しても次のステップに進む
-
-      - name: 🧾 Upload screenshots (if exist)
-        if: always()  # ← 成功・失敗を問わず実行
-        uses: actions/upload-artifact@v4
-        with:
-          name: note-debug-screenshots
-          path: |
-            title_error.png
-            body_error.png
-            save_error.png
-            fatal_error.png
-          if-no-files-found: ignore
+      - name: Post step
+        run: echo "Post with Playwright"
